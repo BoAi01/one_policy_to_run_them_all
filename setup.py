@@ -5,6 +5,7 @@ import pathlib
 
 here = pathlib.Path(__file__).parent.resolve()
 long_description = (here / "README.md").read_text(encoding="utf-8")
+# print(long_description)
 
 
 def read_requirements_file(filename):
@@ -12,6 +13,9 @@ def read_requirements_file(filename):
     with open(file_path) as f:
         return [line.strip() for line in f]
 
+# x  = read_requirements_file("requirements.txt")
+# import pdb
+# pdb.set_trace()
 
 setup(
     name="one_policy_to_run_them_all",

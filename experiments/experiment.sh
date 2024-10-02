@@ -13,9 +13,9 @@
 
 conda activate one_policy_to_run_them_all
 
-python experiment.py \
+JAX_TRACEBACK_FILTERING=off python experiment.py \
     --algorithm.name="uni_ppo.ppo" \
-    --algorithm.total_timesteps=1600143360 \
+    --algorithm.total_timesteps=100143360 \
     --algorithm.nr_steps=10880 \
     --algorithm.minibatch_size=32640 \
     --algorithm.nr_epochs=10 \
@@ -27,19 +27,19 @@ python experiment.py \
     --algorithm.max_grad_norm=5.0 \
     --algorithm.clip_range=0.1 \
     --algorithm.evaluation_episodes=50 \
-    --algorithm.evaluation_frequency=17233920 \
-    --algorithm.save_latest_frequency=17233920 \
+    --algorithm.evaluation_frequency=172339200 \
+    --algorithm.save_latest_frequency=172339200 \
     --algorithm.determine_fastest_cpu_for_gpu=True \
     --algorithm.device="gpu" \
     --environment.name="multi_robot" \
-    --environment.nr_envs=48 \
+    --environment.nr_envs=12 \
     --environment.async_skip_percentage=0.0 \
     --environment.cycle_cpu_affinity=True \
     --environment.seed=0 \
     --runner.mode="train" \
     --runner.track_console=False \
     --runner.track_tb=True \
-    --runner.track_wandb=True \
+    --runner.track_wandb=False \
     --runner.save_model=True \
     --runner.wandb_entity="placeholder" \
     --runner.project_name="one_policy_to_run_them_all" \
