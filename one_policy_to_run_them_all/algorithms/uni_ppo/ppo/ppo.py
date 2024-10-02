@@ -1,6 +1,6 @@
 import os
-from difflib import restore
 
+import ipdb
 import psutil
 import logging
 import time
@@ -8,10 +8,8 @@ from collections import deque
 import tree
 from functools import partial
 import numpy as np
-import jax
 import jax.numpy as jnp
 from flax.training.train_state import TrainState
-from flax.training import orbax_utils
 import orbax.checkpoint
 import optax
 import wandb
@@ -20,109 +18,11 @@ import shutil
 from one_policy_to_run_them_all.algorithms.uni_ppo.ppo.general_properties import GeneralProperties
 from one_policy_to_run_them_all.algorithms.uni_ppo.ppo.policy import get_policy
 from one_policy_to_run_them_all.algorithms.uni_ppo.ppo.critic import get_critic
+from one_policy_to_run_them_all.algorithms.uni_ppo.ppo.utils import save_trainstate, restore_trainstate, AverageMeter
 
 rlx_logger = logging.getLogger("rl_x")
 
 import jax
-import pickle
-
-from flax.training import train_state  # Assuming you use Flax's TrainState
-
-def custom_save(data, file_path):
-    """Save a complex data structure (including JAX TrainState) to disk."""
-    # Create directory if not exists
-    os.makedirs(os.path.dirname(file_path), exist_ok=True)
-
-    # Filter out non-serializable attributes (e.g., functions, compiled code)
-    def filter_serializable(obj):
-        if isinstance(obj, train_state.TrainState):
-            # Only serialize the parameters and optimizer state (or other necessary parts)
-            return {
-                'step': obj.step,
-                'params': obj.params,
-                'opt_state': obj.opt_state
-            }
-        return obj
-
-    # Recursively filter and move JAX arrays to CPU for saving
-    cpu_data = jax.tree_util.tree_map(
-        lambda x: jax.device_put(x, jax.devices('cpu')[0]) if isinstance(x, jax.Array) else filter_serializable(x),
-        data)
-
-    # import ipdb; ipdb.set_trace()
-
-    # Serialize using pickle
-    with open(file_path, 'wb') as f:
-        pickle.dump(cpu_data, f, protocol=pickle.HIGHEST_PROTOCOL)
-
-
-def custom_load(file_path):
-    """Load a complex data structure from disk."""
-    with open(file_path, 'rb') as f:
-        # Deserialize the data using pickle
-        data = pickle.load(f)
-
-        # Transfer JAX arrays back to the appropriate device (e.g., GPU/TPU)
-        device_data = jax.tree_util.tree_map(lambda x: jax.device_put(x) if isinstance(x, jax.Array) else x, data)
-        return device_data
-
-
-import pickle
-import flax.serialization
-from flax.training import train_state
-
-
-def restore_trainstate(trainstate_class, filepath):
-    """Load and restore a Flax TrainState object from a file."""
-    # Load the state dictionary from the file
-    with open(filepath, 'rb') as f:
-        state_dict = pickle.load(f)
-
-    # Restore the TrainState object using the state dictionary
-    restored_trainstate = flax.serialization.from_state_dict(trainstate_class, state_dict)
-    return restored_trainstate
-
-import pickle
-import flax.serialization
-from flax.training import train_state
-
-
-def save_trainstate(trainstate, filepath):
-    """Serialize and save a Flax TrainState object."""
-    # Convert TrainState to a state dictionary
-    state_dict = flax.serialization.to_state_dict(trainstate)
-
-    # Save the state dictionary using pickle
-    with open(filepath, 'wb') as f:
-        pickle.dump(state_dict, f)
-
-
-class AverageMeter:
-    """Keeps track of the running average of a metric (e.g., loss, accuracy)."""
-
-    def __init__(self):
-        """Initializes internal variables to keep track of sums, counts, and averages."""
-        self.reset()
-
-    def reset(self):
-        """Resets the meter to initial state."""
-        self.val = 0  # Current value
-        self.avg = 0  # Average value
-        self.sum = 0  # Sum of all values
-        self.count = 0  # Total number of updates
-
-    def update(self, val, n=1):
-        """
-        Updates the meter with a new value.
-
-        Args:
-            val (float): New value to update the meter with.
-            n (int): Weight or count associated with the value (default is 1).
-        """
-        self.val = val
-        self.sum += val * n
-        self.count += n
-        self.avg = self.sum / self.count
 
 
 class PPO:
@@ -817,10 +717,7 @@ class PPO:
 
     def start_logging(self, step):
         elapsed_time = (time.time() - self.start_time) / 60
-        # self.time_avg_meter.update(elapsed_time)
 
-        # current_time = time.time()
-        #
         # # Check if the function has been invoked before (has 'last_invoked' attribute)
         # elapsed_time = None
         # if hasattr(self.start_logging, 'last_invoked'):
@@ -848,16 +745,10 @@ class PPO:
         #     "policy": policy_state,
         #     "critic": critic_state
         # }
-        # import ipdb; ipdb.set_trace()
-
-        # save_trainstate(checkpoint, 'checkpoint.pkl')
-        # restored_policy_state = restore_trainstate(policy_state, 'policy_state.pkl')
-        # restored_checkpoint = restore_trainstate({"config_algorithm"}, 'checkpoint.pkl')
 
         # self.best_model_checkpointer.save(f"{self.save_path}/tmp", checkpoint)
 
         # loaded_algorithm_config = self.best_model_checkpointer.restore(f"{self.save_path}/algo")
-        #
         # for key, value in loaded_algorithm_config.items():
         #     if f"algorithm.{key}" not in explicitly_set_algorithm_params:
         #         config.algorithm[key] = value
@@ -869,40 +760,13 @@ class PPO:
         #     "critic": model.critic_state
         # }
         # checkpoint = checkpointer.restore(checkpoint_dir, item=target)
-        # import pdb; pdb.set_trace()
         # restore_args = orbax_utils.restore_args_from_target(target)
         #
         # checkpoint = checkpointer.restore(config.runner.load_model, restore_args=restore_args)
 
-        from orbax.checkpoint import RestoreArgs
-        from jax.sharding import SingleDeviceSharding
-        # import jax
-
-        # # Define sharding (for GPU, adjust for CPU or TPU if needed)
-        # sharding = SingleDeviceSharding(jax.devices('gpu')[0])
-
-        # Define restore arguments for each part of policy_state
-        # restore_args = {
-        #     'params': RestoreArgs(),
-        #     'opt_state': RestoreArgs(),
-        #     'step': RestoreArgs(),
-        # }
-        #
-        # # Restore the policy_state with the correct structure and sharding
-        # policy_state = self.best_model_checkpointer.restore(f"{self.save_path}/policy", restore_args=restore_args)
-
-        # from flax.training import train_state, checkpoints
-        # self.best_model_checkpointer.save(f"{self.save_path}/policy", policy_state)
-        # self.best_model_checkpointer.restore(f"{self.save_path}/policy")
-
-        # save_args = orbax_utils.save_args_from_target(checkpoint)
-        # restore_args = orbax_utils.restore_args_from_target(checkpoint)
-
         # save checkpoint to a given folder
         if save_type == "best":
             best_model_path = f"{self.save_path}/{self.best_model_file_name}"
-            # custom_save(checkpoint, best_model_path)
-            # import ipdb; ipdb.set_trace()
 
             os.makedirs(f"{self.save_path}/tmp", exist_ok=True)
             save_trainstate(policy_state, f"{self.save_path}/tmp/policy_state")
@@ -920,9 +784,6 @@ class PPO:
                 shutil.rmtree(best_model_path)
 
             os.rename(f"{self.save_path}/tmp", best_model_path)
-
-            # os.remove(f"{self.save_path}/tmp/_METADATA")
-            # os.rmdir(f"{self.save_path}/tmp")
 
             if self.track_wandb:
                 wandb.save(f"{self.save_path}/{self.best_model_file_name}", base_path=self.save_path)
@@ -948,7 +809,6 @@ class PPO:
         # checkpoint_file_name = splitted_path[-1]
         checkpoint_dir = config.runner.load_model
 
-        #
         # check_point_handler = orbax.checkpoint.PyTreeCheckpointHandler()
         # checkpointer = orbax.checkpoint.Checkpointer(check_point_handler)
 
@@ -964,10 +824,7 @@ class PPO:
         #     "policy": model.policy_state,
         #     "critic": model.critic_state
         # }
-        # import ipdb; ipdb.set_trace()
-
         # checkpoint = checkpointer.restore(os.path.join(checkpoint_dir, "policy_state"), item=model.policy_state)
-
         # restore_args = orbax_utils.restore_args_from_target(target)
         # checkpoint = checkpointer.restore(config.runner.load_model, restore_args=restore_args)
 
